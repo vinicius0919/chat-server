@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Discórdia</title>
+    <script type="module" crossorigin src="/assets/index-Dbd2eVwH.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DyxquCv2.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  const socket = io("https://endless-properly-unicorn.ngrok-free.app");
+  socket.on("connect", () => {
+    console.log("Conectado!", socket.id);
+  });
+</script>
+  </body>
+</html>

@@ -2,17 +2,24 @@ const express = require("express");
 const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-const path = require("path");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 const server = createServer(app);
 
-const { connection } = require("./db/connection");
+require("./db/connection");
+const {
+  createChannel,
+  getChannelById,
+  getChannelByUserId,
+  updateChannel,
+  addMemberToChannel,
+  deleteChannel,
+} = require("./controllers/channelController");
 
 const { router: userRouter } = require("./routes/userRoutes");
-
+const { create } = require("./models/Channel");
 
 const io = new Server(server, {
   cors: {
@@ -21,93 +28,55 @@ const io = new Server(server, {
   },
 });
 
+app.use("/api/users", userRouter);
 
-app.use('/api/users', userRouter);
-
-const channels = [];
+//const channels = [];
 
 io.on("connection", (socket) => {
   console.log(socket.id, `connected ${new Date().toLocaleTimeString()}`);
 
-  socket.emit("channels_list", channels);
-
-  socket.on("get_rooms", (username) => {
+  socket.on("get_rooms", async (userId) => {
     console.log("Fetching rooms");
     // emit only channels that are not private and the user is owner or player
-    const userChannels = channels.filter(
-      (channel) =>
-        channel.roomType === "public" ||
-        channel.owner === username ||
-        channel.roomPlayers.includes(username)
-    );
+    const userChannels = await getChannelByUserId(userId);
+    console.log("User channels:", userChannels);
     socket.emit("rooms", userChannels);
   });
-
   socket.on(
     "create_channel",
-    (data, roomLength, username, roomType, roomPassword) => {
-      if (!channels.find((channel) => channel.name === data)) {
-        channels.push({
-          name: data,
+    (channelName, description, roomLength, userId, roomType, roomPassword, username) => {
+        createChannel(channelName, description, userId, {
           roomLength,
-          roomPlayers: [],
-          owner: username,
           roomType,
           roomPassword,
-          messages: [],
-        });
-        // emit only channels that are not private and the user is owner or player
-        if (roomType === "public") {
-          io.emit(
-            "rooms",
-            channels.filter(
-              (channel) =>
-                channel.roomType === "public" ||
-                channel.owner === username ||
-                channel.roomPlayers.includes(username)
-            )
-          );
-        } else {
-          socket.emit(
-            "rooms",
-            channels.filter(
-              (channel) =>
-                channel.roomType === "public" ||
-                channel.owner === username ||
-                channel.roomPlayers.includes(username)
-            )
-          );
-        }
-        console.log("Channel created:", {
-          name: data,
-          roomLength,
-          roomPlayers: [],
-          owner: username,
-          roomType,
-          roomPassword,
-          messages: [],
-        });
+        })
+          .then((channel) => {
+            console.log("Channel created successfully:", channel);
+            socket.emit("channel_created", {
+              _id: channel._id,
+              name: channel.name,
+              description: channel.description,
+              owner: {
+                _id: channel.owner,
+                username: username,
+              }
+            });
+          })
+          .catch((error) => {
+            console.error("Error creating channel:", error);
+          });
       }
-    }
   );
 
-  socket.on("delete_channel", (data, username) => {
-    console.log("Attempting to delete channel:", data, "by user:", username);
-    const channelIndex = channels.findIndex((channel) => channel.name === data);
-    if (channelIndex !== -1 && channels[channelIndex].owner === username) {
-      channels.splice(channelIndex, 1);
-      // emit only channels that are not private and the user is owner or player
-      io.emit(
-        "rooms",
-        channels.filter(
-          (channel) =>
-            !channel.roomType ||
-            channel.owner === username ||
-            channel.roomPlayers.includes(username)
-        )
-      );
-
-      console.log("Channel deleted:", data);
+  socket.on("delete_channel", async (channelId, userId) => {
+    console.log("Attempting to delete channel:", channelId, "by user:", userId);
+    try {
+      const deletedChannel = await deleteChannel(channelId, userId);
+      if (deletedChannel) {
+        socket.emit("channel_deleted", { _id: channelId });
+      }
+    } catch (error) {
+      console.error("Error deleting channel:", error);
     }
   });
 
@@ -137,15 +106,25 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("join_private_channel", (roomName, roomPassword, username) => {
+  socket.on("join_private_channel", (roomName, roomPassword, userId) => {
     const channel = channels.find((channel) => {
-      console.log("Checking channel:", channel.name, "against roomName:", roomName);
-      return channel.name === `${roomName}`});
+      console.log(
+        "Checking channel:",
+        channel.name,
+        "against roomName:",
+        roomName
+      );
+      return channel.name === `${roomName}`;
+    });
     console.log(channel);
     if (channel && channel.roomPassword === roomPassword) {
-      console.log("Joining private channel:", channel.name, channel.roomPassword === roomPassword);
-      if (!channel.roomPlayers.includes(username)) {
-        channel.roomPlayers.push(username);
+      console.log(
+        "Joining private channel:",
+        channel.name,
+        channel.roomPassword === roomPassword
+      );
+      if (!channel.members.includes(userId)) {
+        channel.members.push(userId);
       }
     } else {
       console.error("Failed to join private channel:", roomName);

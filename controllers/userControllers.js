@@ -1,15 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-
-const generatePasswordHash = async (password) => {
-  const saltRounds = parseInt(process.env.SALT_ROUNDS, 10) || 10;
-  return await bcrypt.hash(password, saltRounds);
-}
-
-const verifyPassword = async (password, hash) => {
-  return await bcrypt.compare(password, hash);
-}
+const { generatePasswordHash, verifyPassword } = require('../functions/passwordHash');
 
 const registerUser = async (username, password) => {
     if (!username || !password) {

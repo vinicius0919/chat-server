@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { create } = require("./Channel");
 
 const messagesSchema = new mongoose.Schema({
     channel: { type: mongoose.Schema.Types.ObjectId, ref: "Channel", required: true },

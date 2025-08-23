@@ -5,11 +5,13 @@ const { Server } = require("socket.io");
 
 const app = express();
 app.use(express.json());
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 const server = createServer(app);
 
 require("./db/connection");
@@ -21,6 +23,11 @@ const {
   addMemberToChannel,
   deleteChannel,
 } = require("./controllers/channelController");
+
+const {
+  insertMessage,
+  getMessagesByChannelId,
+} = require("./controllers/messagesCOntroller");
 
 const { router: userRouter } = require("./routes/userRoutes");
 const { create } = require("./models/Channel");
@@ -48,28 +55,36 @@ io.on("connection", (socket) => {
   });
   socket.on(
     "create_channel",
-    (channelName, description, roomLength, userId, roomType, roomPassword, username) => {
-        createChannel(channelName, description, userId, {
-          roomLength,
-          roomType,
-          roomPassword,
-        })
-          .then((channel) => {
-            console.log("Channel created successfully:", channel);
-            socket.emit("channel_created", {
-              _id: channel._id,
-              name: channel.name,
-              description: channel.description,
-              owner: {
-                _id: channel.owner,
-                username: username,
-              }
-            });
-          })
-          .catch((error) => {
-            console.error("Error creating channel:", error);
+    (
+      channelName,
+      description,
+      roomLength,
+      userId,
+      roomType,
+      roomPassword,
+      username
+    ) => {
+      createChannel(channelName, description, userId, {
+        roomLength,
+        roomType,
+        roomPassword,
+      })
+        .then((channel) => {
+          console.log("Channel created successfully:", channel);
+          socket.emit("channel_created", {
+            _id: channel._id,
+            name: channel.name,
+            description: channel.description,
+            owner: {
+              _id: channel.owner,
+              username: username,
+            },
           });
-      }
+        })
+        .catch((error) => {
+          console.error("Error creating channel:", error);
+        });
+    }
   );
 
   socket.on("delete_channel", async (channelId, userId) => {
@@ -84,63 +99,33 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("send_message_to_channel", (room, data) => {
-    const channel = channels.find((channel) => channel.name === `${room}`);
-    if (!channel) {
-      console.error("Channel does not exist:", room);
-      return;
-    }
-    if (!data || !data.message) {
-      console.error("Invalid message data:", data);
-      return;
-    }
-    console.log("Sending message to channel:", room, data);
-    channel.messages.push(data);
-    console.log(channel.messages);
+  socket.on("send_message_to_channel", async (room, data) => {
+    await insertMessage(room, data);
+    console.log("Message sent to channel:", room, data);
 
     io.to(room).emit("message", data);
   });
 
-  socket.on("join_channel", (data) => {
-    const channel = channels.find((channel) => channel.name === `${data}`);
-    if (channel) {
-      console.log("Joining channel:", channel.messages);
-      socket.emit("room_messages", channel.messages);
-      socket.join(data);
-    }
+  socket.on("join_channel", async (channelId) => {
+    const messages = await getMessagesByChannelId(channelId);
+    console.log("Joining channel:", channelId, messages);
+    socket.emit("room_messages", messages);
+    socket.join(channelId);
   });
 
-  socket.on("join_private_channel", (roomName, roomPassword, userId) => {
-    const channel = channels.find((channel) => {
-      console.log(
-        "Checking channel:",
-        channel.name,
-        "against roomName:",
-        roomName
-      );
-      return channel.name === `${roomName}`;
-    });
-    console.log(channel);
-    if (channel && channel.roomPassword === roomPassword) {
-      console.log(
-        "Joining private channel:",
-        channel.name,
-        channel.roomPassword === roomPassword
-      );
-      if (!channel.members.includes(userId)) {
-        channel.members.push(userId);
-      }
-    } else {
-      console.error("Failed to join private channel:", roomName);
-      socket.emit("error", "Incorrect password or room does not exist.");
-    }
-  });
-
-  socket.on("get_room_messages", (roomName) => {
-    const channel = channels.find((c) => c.name === roomName);
-    if (channel) {
-      console.log("enviando mensagens da sala:", roomName, channel.messages);
-      socket.emit("room_messages", channel.messages);
+  socket.on("join_private_channel", (roomName, type, roomPassword, userId) => {
+    if (type === "public") {
+      addMemberToChannel(roomName, userId, roomPassword)
+        .then((channel) => {
+          console.log("Joined private channel:", channel.name);
+          socket.join(channel.name);
+        })
+        .catch((error) => {
+          console.error("Failed to join private channel:", roomName, error);
+          socket.emit("error", "Incorrect password or room does not exist.");
+        });
+    } else if (type === "private") {
+      // Handle joining private channel
     }
   });
 

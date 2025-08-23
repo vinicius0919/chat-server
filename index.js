@@ -27,10 +27,9 @@ const {
 const {
   insertMessage,
   getMessagesByChannelId,
-} = require("./controllers/messagesCOntroller");
+} = require("./controllers/messagesController");
 
 const { router: userRouter } = require("./routes/userRoutes");
-const { create } = require("./models/Channel");
 
 const io = new Server(server, {
   cors: {

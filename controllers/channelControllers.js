@@ -92,10 +92,30 @@ const deleteChannel = async (id, userId) => {
   return await Channel.deleteOne({ _id: id });
 };
 
+// search channels by name (with pagination using $lt)
+
+const searchChannels = async (query, page = 1, limit = 10) => {
+  if (!query) {
+    throw new Error("Query is required");
+  }
+  const skip = (page - 1) * limit;
+  // configs.type must be public
+  return await Channel.find({
+      name: { $regex: query, $options: "i" },
+      "configs.roomType": "public"
+  })
+    .populate("owner", "-passwordHash")
+    .populate("members", "-passwordHash")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+};
+
 module.exports = {
   createChannel,
   getChannelById,
   getChannelByUserId,
+  searchChannels,
   updateChannel,
   addMemberToChannel,
   deleteChannel,

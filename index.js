@@ -22,14 +22,15 @@ const {
   updateChannel,
   addMemberToChannel,
   deleteChannel,
-} = require("./controllers/channelController");
+} = require("./controllers/channelControllers");
 
 const {
   insertMessage,
   getMessagesByChannelId,
-} = require("./controllers/messagesController");
+} = require("./controllers/messagesControllers");
 
 const { router: userRouter } = require("./routes/userRoutes");
+const { router: channelRouter } = require("./routes/channelRoutes");
 
 const io = new Server(server, {
   cors: {
@@ -37,6 +38,7 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+app.use("/api/channels", channelRouter);
 
 app.use("/api/users", userRouter);
 
@@ -106,6 +108,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join_channel", async (channelId) => {
+    // veerify if channel exists
+    const channel = await getChannelById(channelId);
+    if (!channel) {
+      return socket.emit("error", "Channel not found");
+    }
+
     const messages = await getMessagesByChannelId(channelId);
     console.log("Joining channel:", channelId, messages);
     socket.emit("room_messages", messages);

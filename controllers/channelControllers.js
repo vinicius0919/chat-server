@@ -49,7 +49,7 @@ const updateChannel = async (id, updates) => {
   return await Channel.findByIdAndUpdate(id, updates, { new: true });
 };
 
-const addMemberToChannel = async (channelId, userId, channelPassword) => {
+const addMemberToChannel = async (channelId, userId) => {
   if (!channelId || !userId) {
     throw new Error("ID do canal e ID do usuário são obrigatórios");
   }
@@ -59,19 +59,6 @@ const addMemberToChannel = async (channelId, userId, channelPassword) => {
   }
   if (channel.members.includes(userId)) {
     throw new Error("Usuário já é membro do canal");
-  }
-
-  if (channel.configs.password) {
-    if (!channelPassword) {
-      throw new Error("Senha do canal é obrigatória");
-    }
-    const isPasswordValid = await verifyPassword(
-      channelPassword,
-      channel.configs.password
-    );
-    if (!isPasswordValid) {
-      throw new Error("Senha do canal inválida");
-    }
   }
 
   channel.members.push(userId);

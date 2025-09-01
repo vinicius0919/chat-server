@@ -22,6 +22,7 @@ const {
   updateChannel,
   addMemberToChannel,
   deleteChannel,
+  getChannelMembers,
 } = require("./controllers/channelControllers");
 
 const {
@@ -45,13 +46,13 @@ app.use("/api/users", userRouter);
 //const channels = [];
 
 io.on("connection", (socket) => {
-  console.log(socket.id, `connected ${new Date().toLocaleTimeString()}`);
-
   socket.on("get_rooms", async (userId) => {
-    console.log("Fetching rooms");
+    if (!userId) {
+      return socket.emit("error", "User ID is required to fetch rooms");
+    }
+
     // emit only channels that are not private and the user is owner or player
     const userChannels = await getChannelByUserId(userId);
-    console.log("User channels:", userChannels);
     socket.emit("rooms", userChannels);
   });
   socket.on(
@@ -71,7 +72,6 @@ io.on("connection", (socket) => {
         roomPassword,
       })
         .then((channel) => {
-          console.log("Channel created successfully:", channel);
           socket.emit("channel_created", {
             _id: channel._id,
             name: channel.name,
@@ -89,20 +89,18 @@ io.on("connection", (socket) => {
   );
 
   socket.on("delete_channel", async (channelId, userId) => {
-    console.log("Attempting to delete channel:", channelId, "by user:", userId);
     try {
       const deletedChannel = await deleteChannel(channelId, userId);
       if (deletedChannel) {
         socket.emit("channel_deleted", { _id: channelId });
       }
     } catch (error) {
-      console.error("Error deleting channel:", error);
+      socket.emit("error", "Error deleting channel");
     }
   });
 
   socket.on("send_message_to_channel", async (room, data) => {
     await insertMessage(room, data);
-    console.log("Message sent to channel:", room, data);
 
     io.to(room).emit("message", data);
   });
@@ -113,10 +111,9 @@ io.on("connection", (socket) => {
     if (!channel) {
       return socket.emit("error", "Channel not found");
     }
-
+    const members = await getChannelMembers(channelId);
     const messages = await getMessagesByChannelId(channelId);
-    console.log("Joining channel:", channelId, messages);
-    socket.emit("room_messages", messages);
+    socket.emit("room_messages", messages, members);
     socket.join(channelId);
   });
 
@@ -124,11 +121,9 @@ io.on("connection", (socket) => {
     if (type === "public") {
       addMemberToChannel(roomName, userId, roomPassword)
         .then((channel) => {
-          console.log("Joined private channel:", channel.name);
           socket.join(channel.name);
         })
         .catch((error) => {
-          console.error("Failed to join private channel:", roomName, error);
           socket.emit("error", "Incorrect password or room does not exist.");
         });
     } else if (type === "private") {

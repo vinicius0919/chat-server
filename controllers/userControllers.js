@@ -25,10 +25,24 @@ const loginUser = async (username, password) => {
         throw new Error("Senha inválida");
     }
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    return { token, userId: user._id };
+    return { token, userId: user._id, profileImage: user.profileImage };
+}
+
+const updateUser = async (id, updates) => {
+    if (!id || !updates) {
+        throw new Error("ID do usuário e atualizações são obrigatórios");
+    }
+    const user = await User.findById(id).select('-passwordHash');
+    if (!user) {
+        throw new Error("Usuário não encontrado");
+    }
+    user.set(updates);
+    const updatedUser = await user.save();
+    return updatedUser;
 }
 
 module.exports = {
     registerUser,
-    loginUser
+    loginUser,
+    updateUser
 }

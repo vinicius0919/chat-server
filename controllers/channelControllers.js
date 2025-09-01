@@ -1,5 +1,5 @@
 const Channel = require("../models/Channel");
-const { generatePasswordHash } = require("../functions/passwordHash");
+const { generatePasswordHash, verifyPassword } = require("../functions/passwordHash");
 
 const createChannel = async (name, description, ownerId, configs) => {
   if (!name || !ownerId) {
@@ -78,6 +78,40 @@ const addMemberToChannel = async (channelId, userId, channelPassword) => {
   return await channel.save();
 };
 
+// add member to private by channel name and channel password
+const addMemberToPrivateChannel = async (channelName, channelPassword, userId) => {
+  if (!channelName || !channelPassword || !userId) {
+    throw new Error("Nome do canal, senha do canal e ID do usuário são obrigatórios");
+  }
+
+  const channel = await Channel.findOne({ name: channelName, "configs.roomType": "private" });
+  if (!channel) {
+    throw new Error("Canal privado não encontrado");
+  }
+
+  const isPasswordValid = await verifyPassword(channelPassword, channel.configs.roomPassword);
+  if (!isPasswordValid) {
+    throw new Error("Senha do canal inválida");
+  }
+
+  channel.members.push(userId);
+  await channel.save();
+// remove password from response
+  const data = {
+    _id: channel._id,
+    name: channel.name,
+    description: channel.description,
+    owner: channel.owner,
+    members: channel.members,
+    configs: {
+      ...channel.configs,
+      roomPassword: undefined
+    }
+  };
+
+  return data;
+};
+
 const deleteChannel = async (id, userId) => {
   if (!id) {
     throw new Error("ID do canal é obrigatório");
@@ -89,6 +123,12 @@ const deleteChannel = async (id, userId) => {
   if (channel.owner.toString() !== userId) {
     throw new Error("Apenas o proprietário pode deletar o canal");
   }
+  // also delete all messages related to this channel
+  const Messages = require("../models/Messages");
+  await Messages.deleteMany({ channel: id });
+
+  // then delete the channel
+
   return await Channel.deleteOne({ _id: id });
 };
 
@@ -111,6 +151,22 @@ const searchChannels = async (query, page = 1, limit = 10) => {
     .limit(limit);
 };
 
+// get all members of a channel by channelId
+const getChannelMembers = async (channelId) => {
+  if (!channelId) {
+    throw new Error("ID do canal é obrigatório");
+  }
+  const channel = await Channel.findById(channelId).populate("members").populate("owner");
+  if (!channel) {
+    throw new Error("Canal não encontrado");
+  }
+  const members = channel.members.map(member => {
+    return { _id: member._id, username: member.username, profileImage: member.profileImage };
+  });
+  const owner = { _id: channel.owner._id, username: channel.owner.username, profileImage: channel.owner.profileImage };
+  return members.concat(owner);
+};
+
 module.exports = {
   createChannel,
   getChannelById,
@@ -118,5 +174,7 @@ module.exports = {
   searchChannels,
   updateChannel,
   addMemberToChannel,
+  addMemberToPrivateChannel,
   deleteChannel,
+  getChannelMembers
 };

@@ -53,6 +53,7 @@ const addMemberToChannel = async (channelId, userId) => {
   if (!channelId || !userId) {
     throw new Error("ID do canal e ID do usuário são obrigatórios");
   }
+  console.log("Adding member to channel:", channelId, userId);
   const channel = await Channel.findById(channelId);
   if (!channel) {
     throw new Error("Canal não encontrado");

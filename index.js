@@ -100,9 +100,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("send_message_to_channel", async (room, data) => {
-    await insertMessage(room, data);
-
     io.to(room).emit("message", data);
+    await insertMessage(room, data);
   });
 
   socket.on("join_channel", async (channelId) => {

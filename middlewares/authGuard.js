@@ -10,19 +10,19 @@ const authGuard = async (req, res, next) => {
     if (!token) {
                 console.log('No token provided');
 
-        return res.status(401).json({ message: 'Token não fornecido' });
+        return res.status(401).json({ errorMessage: 'Token não fornecido' });
     }
     try {
         const decoded = jwt.verify(token, jwtSecret);
         console.log(token, decoded);
         const user = await User.findById(decoded.userId).select('-passwordHash');
         if (!user) {
-            return res.status(401).json({ message: 'Usuário não encontrado' });
+            return res.status(401).json({ errorMessage: 'Usuário não encontrado' });
         }
         req.user = user;
         next();
     } catch (error) {
-        return res.status(401).json({ message: 'Token inválido' });
+        return res.status(401).json({ errorMessage: 'Token expirado' });
     }
 }
 

@@ -6,7 +6,7 @@ const {
   verifyPassword,
 } = require("../functions/passwordHash");
 
-const refreshTokens= [];
+let refreshTokens= [];
 
 const registerUser = async (username, password) => {
   if (!username || !password) {

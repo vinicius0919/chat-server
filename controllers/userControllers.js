@@ -32,10 +32,10 @@ const loginUser = async (username, password) => {
   const accessToken = jwt.sign(
     { id: user.id, username: user.username },
     process.env.ACCESS_SECRET,
-    { expiresIn: "20s" }
+    { expiresIn: `${process.env.ACCESS_TOKEN_EXPIRY}` }
   );
   const refreshToken = jwt.sign({ id: user.id }, process.env.REFRESH_SECRET, {
-    expiresIn: "7d",
+    expiresIn: `${process.env.REFRESH_TOKEN_EXPIRY}`,
   });
   refreshTokens.push(refreshToken);
   return {accessToken, refreshToken, userId: user._id, profileImage: user.profileImage };
@@ -72,7 +72,7 @@ const refreshToken = (token) => {
   try {
     const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
     const accessToken = jwt.sign({ id: decoded.id }, process.env.ACCESS_SECRET, {
-      expiresIn: "20s",
+      expiresIn: `${process.env.ACCESS_TOKEN_EXPIRY}`,
     });
     return accessToken;
   } catch (error) {

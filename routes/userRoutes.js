@@ -28,7 +28,6 @@ router.post("/login", async (req, res) => {
       username,
       password
     );
-    const isProd = process.env.NODE_ENV === "production";
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: true, // obrigatório se SameSite=None

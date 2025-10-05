@@ -18,15 +18,20 @@ const registerUser = async (username, password) => {
 };
 
 const loginUser = async (username, password) => {
+  console.log("Login attempt for user:", username);
   if (!username || !password) {
+    console.error("Missing username or password");
     throw new Error("Usuário e senha são obrigatórios");
   }
   const user = await User.findOne({ username });
+  console.log("User found:", user);
   if (!user) {
+    console.error("User not found");
     throw new Error("Usuário não encontrado");
   }
   const isPasswordValid = await verifyPassword(password, user.passwordHash);
   if (!isPasswordValid) {
+    console.error("Invalid password");
     throw new Error("Senha inválida");
   }
   const accessToken = jwt.sign(

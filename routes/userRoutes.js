@@ -22,7 +22,7 @@ router.post("/register", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
-
+  console.log("Login attempt for user:", username);
   try {
     const { accessToken, refreshToken, userId, profileImage } = await loginUser(
       username,

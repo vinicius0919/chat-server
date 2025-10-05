@@ -15,6 +15,7 @@ const allowedOrigins = [
   "http://10.0.0.167:5173",
   "https://acaitalk.site",
   "https://www.acaitalk.site",
+  'https://chat-front-git-features-vinicius-limas-projects-266dca5b.vercel.app'
 ];
 
 app.use(

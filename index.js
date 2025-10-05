@@ -1,13 +1,27 @@
 const express = require("express");
+require("dotenv").config();
 const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
+const { verifyToken } = require("./middlewares/authGuard");
+const cookieParser = require("cookie-parser");
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://10.0.0.167:5173",
+  "https://acaitalk.site",
+  "https://www.acaitalk.site",
+  'https://chat-front-git-features-vinicius-limas-projects-266dca5b.vercel.app'
+];
+
 app.use(
   cors({
-    origin: "*",
+    origin: allowedOrigins,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -35,7 +49,7 @@ const { router: channelRouter } = require("./routes/channelRoutes");
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // aqui pode ser "http://localhost:5173" para restringir
+    origin: allowedOrigins, // aqui pode ser "http://localhost:5173" para restringir
     methods: ["GET", "POST"],
   },
 });
@@ -43,42 +57,64 @@ app.use("/api/channels", channelRouter);
 
 app.use("/api/users", userRouter);
 
-//const channels = [];
-
 io.on("connection", (socket) => {
-  socket.on("get_rooms", async (userId) => {
-    if (!userId) {
-      return socket.emit("error", "User ID is required to fetch rooms");
+  const validateToken = (token) => {
+    try {
+      const decoded = verifyToken(token);
+
+      if (!decoded) {
+        socket.emit("token_error", "Invalid or expired token");
+        return null;
+      }
+      return decoded;
+    } catch (error) {
+      socket.emit("token_error", "Invalid or expired token");
+      return null;
+    }
+  };
+
+  socket.on("get_rooms", async (token) => {
+    const decoded = validateToken(token);
+    if (!decoded) {
+      return;
+    }
+    if (!decoded.id) {
+      return socket.emit("channel_error", "User ID is required to fetch rooms");
     }
 
     // emit only channels that are not private and the user is owner or player
-    const userChannels = await getChannelByUserId(userId);
+    const userChannels = await getChannelByUserId(decoded.id);
     socket.emit("rooms", userChannels);
   });
   socket.on(
     "create_channel",
     (
+      token,
+      userId,
       channelName,
       description,
       roomLength,
-      userId,
       roomType,
-      roomPassword,
-      username
+      roomPassword
     ) => {
+      const decoded = validateToken(token);
+      if (!decoded) {
+        return;
+      }
       createChannel(channelName, description, userId, {
         roomLength,
         roomType,
         roomPassword,
       })
         .then((channel) => {
+          console.log("Channel created:", channel);
           socket.emit("channel_created", {
             _id: channel._id,
             name: channel.name,
             description: channel.description,
             owner: {
               _id: channel.owner,
-              username: username,
+              username: channel.username,
             },
           });
         })
@@ -88,27 +124,44 @@ io.on("connection", (socket) => {
     }
   );
 
-  socket.on("delete_channel", async (channelId, userId) => {
+  socket.on("delete_channel", async (token, channelId) => {
+    const decoded = validateToken(token);
+    if (!decoded) {
+      return;
+    }
     try {
-      const deletedChannel = await deleteChannel(channelId, userId);
+      const deletedChannel = await deleteChannel(channelId, decoded.id);
       if (deletedChannel) {
         socket.emit("channel_deleted", { _id: channelId });
       }
     } catch (error) {
-      socket.emit("error", "Error deleting channel");
+      socket.emit("channel_error", "Error deleting channel");
     }
   });
 
-  socket.on("send_message_to_channel", async (room, data) => {
+  socket.on("send_message_to_channel", async (token, room, data) => {
+    const decoded = validateToken(token);
+    if (!decoded) {
+      return;
+    }
     io.to(room).emit("message", data);
     await insertMessage(room, data);
   });
 
-  socket.on("join_channel", async (channelId) => {
-    // veerify if channel exists
+  socket.on("join_channel", async (token, channelId) => {
+    if (!channelId) {
+      return socket.emit("channel_error", "Channel ID is required to join");
+    }
+
+    const decoded = validateToken(token);
+    if (!decoded) {
+      return;
+    }
+
+    // verify if channel exists
     const channel = await getChannelById(channelId);
     if (!channel) {
-      return socket.emit("error", "Channel not found");
+      return socket.emit("channel_error", "Channel not found");
     }
     const members = await getChannelMembers(channelId);
     const messages = await getMessagesByChannelId(channelId);
@@ -116,14 +169,21 @@ io.on("connection", (socket) => {
     socket.join(channelId);
   });
 
-  socket.on("join_private_channel", (roomName, type, roomPassword, userId) => {
+  socket.on("join_private_channel", (token, roomName, type, roomPassword) => {
+    const decoded = validateToken(token);
+    if (!decoded) {
+      return;
+    }
     if (type === "public") {
-      addMemberToChannel(roomName, userId, roomPassword)
+      addMemberToChannel(roomName, decoded.id, roomPassword)
         .then((channel) => {
           socket.join(channel.name);
         })
         .catch((error) => {
-          socket.emit("error", "Incorrect password or room does not exist.");
+          socket.emit(
+            "channel_error",
+            "Incorrect password or room does not exist."
+          );
         });
     } else if (type === "private") {
       // Handle joining private channel

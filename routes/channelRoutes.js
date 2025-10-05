@@ -1,6 +1,6 @@
 const { searchChannels, addMemberToChannel, addMemberToPrivateChannel } = require("../controllers/channelControllers");
 const { insertMessage } = require("../controllers/messagesControllers");
-const authGuard = require("../middlewares/authGuard");
+const {authGuard} = require("../middlewares/authGuard");
 
 const router = require("express").Router();
 

@@ -2,9 +2,12 @@ const Channel = require("../models/Channel");
 const { generatePasswordHash, verifyPassword } = require("../functions/passwordHash");
 
 const createChannel = async (name, description, ownerId, configs) => {
+  console.log("createChannel called with:", name, description, ownerId, configs);
   if (!name || !ownerId) {
+    console.log("Missing required fields");
     throw new Error("Nome do canal e ID do proprietário são obrigatórios");
   }
+  console.log("Creating channel", name, description, ownerId, configs);
   let hashedPassword = undefined;
   if (configs.roomPassword !== "" && configs.roomPassword) {
     hashedPassword = await generatePasswordHash(configs.roomPassword);

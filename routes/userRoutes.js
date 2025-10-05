@@ -1,18 +1,16 @@
 const { Router } = require("express");
-const jwt = require("jsonwebtoken");
 const {
   registerUser,
   loginUser,
   updateUser,
-  refreshTokenExists,
   logoutUser,
+  refreshToken,
 } = require("../controllers/userControllers");
 const { authGuard } = require("../middlewares/authGuard");
 const router = Router();
 
 router.post("/register", async (req, res) => {
   const { username, password } = req.body;
-  console.log("Registering user:", username, password);
   try {
     const user = await registerUser(username, password);
     res.status(201).json({ message: "User registered successfully", user });
@@ -31,14 +29,12 @@ router.post("/login", async (req, res) => {
       password
     );
     const isProd = process.env.NODE_ENV === "production";
-
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: isProd, // HTTPS apenas em produção
-      sameSite: isProd ? "none" : "lax", // evita bloqueio em localhost
-      domain: isProd ? process.env.DOMAIN : undefined, // só aplica domínio em prod
+      secure: true, // obrigatório se SameSite=None
+      sameSite: "none", // permite cross-site
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     res.status(200).json({
       message: "Login successful",
@@ -55,10 +51,8 @@ router.post("/login", async (req, res) => {
 router.put("/update/:id", authGuard, async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
-  console.log(id, updates);
   try {
     const updatedUser = await updateUser(id, updates);
-    console.log("User updated:", updatedUser);
     res
       .status(200)
       .json({ message: "User updated successfully", user: updatedUser });
@@ -72,31 +66,22 @@ router.post("/logout", (req, res) => {
   logoutUser(refreshToken);
   res.clearCookie("refreshToken", {
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    secure: process.env.NODE_ENV === "production",
-    domain:
-      process.env.NODE_ENV === "production" ? process.env.DOMAIN : undefined,
-    path: "/",
+    secure: true,       // obrigatório se SameSite=None
+    sameSite: 'none',   // permite cross-site
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+    path: '/',
   });
-  console.log("User logged out, refresh token removed:", refreshToken);
-  res.status(200).json({ message: "Logout successful" });
+  res.status(204).json({ message: "Logout successful" });
 });
 
-router.post("/refresh", (req, res) => {
+router.post("/refresh", async (req, res) => {
   const token = req.cookies.refreshToken;
-  console.log("Cookies recebidos no refresh:", req.cookies);
-  console.log("Refresh token received:", token);
-  if (!token || !refreshTokenExists(token)) {
-    return res.status(401).json({ message: "Refresh token inválido" });
+  try {
+    const accessToken = await refreshToken(token);
+    res.status(200).json({ accessToken });
+  } catch (error) {
+    res.status(403).json({ message: error.message });
   }
-
-  jwt.verify(token, process.env.REFRESH_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: "Token expirado" });
-    const accessToken = jwt.sign({ id: user.id }, process.env.ACCESS_SECRET, {
-      expiresIn: "20s",
-    });
-    res.json({ accessToken });
-  });
 });
 
 module.exports = { router };

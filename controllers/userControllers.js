@@ -45,7 +45,6 @@ const updateUser = async (id, updates) => {
   if (!id || !updates) {
     throw new Error("ID do usuário e atualizações são obrigatórios");
   }
-  console.log("Atualizando usuário:", id, updates);
   const user = await User.findById(id).select("-passwordHash");
   if (!user) {
     throw new Error("Usuário não encontrado");
@@ -61,6 +60,26 @@ const refreshTokenExists = (token) => {
   return refreshTokens.includes(token);
 }
 
+// refresh token
+
+const refreshToken = (token) => {
+  if (!token) {
+    throw new Error("Token não fornecido");
+  }
+  if (!refreshTokenExists(token)) {
+    throw new Error("Token inválido");
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
+    const accessToken = jwt.sign({ id: decoded.id }, process.env.ACCESS_SECRET, {
+      expiresIn: "20s",
+    });
+    return accessToken;
+  } catch (error) {
+    throw new Error("Token expirado");
+  }
+};
+
 const logoutUser = (refreshToken) => {
   refreshTokens = refreshTokens.filter(t => t !== refreshToken);
 };
@@ -72,5 +91,6 @@ module.exports = {
   loginUser,
   updateUser,
   logoutUser,
-  refreshTokenExists
+  refreshTokenExists,
+  refreshToken
 };

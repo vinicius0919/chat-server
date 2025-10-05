@@ -8,7 +8,6 @@ router.get("/search", authGuard, async (req, res) => {
   const { query, page = 1, limit = 10 } = req.query;
   // try decode URI component in case of spaces or special characters
   const decodedQuery = decodeURIComponent(query);
-  console.log("Searching channels with query:", decodedQuery);
   try {
     const channels = await searchChannels(decodedQuery, parseInt(page), parseInt(limit));
     res.status(200).json(channels);
@@ -43,7 +42,6 @@ router.post("/:channelId/addMember", authGuard, async (req, res) => {
 router.post("/:channelName/addMemberPrivate", authGuard, async (req, res) => {
   const { channelName } = req.params;
   const { userId, channelPassword } = req.body;
-  console.log("Adding member to private channel:", channelName, userId);
   try {
     const channel = await addMemberToPrivateChannel(channelName, channelPassword, userId);
     const systemMessage = {

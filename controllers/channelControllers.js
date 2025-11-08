@@ -1,10 +1,20 @@
 const Channel = require("../models/Channel");
-const { generatePasswordHash, verifyPassword } = require("../functions/passwordHash");
+const {
+  generatePasswordHash,
+  verifyPassword,
+} = require("../functions/passwordHash");
 
 const createChannel = async (name, description, ownerId, configs) => {
-  console.log("createChannel called with:", name, description, ownerId, configs);
+  console.log(
+    "createChannel called with:",
+    name,
+    description,
+    ownerId,
+    configs
+  );
   if (!name || !ownerId) {
     console.log("Missing required fields");
+    console.log("Name:", name, "OwnerId:", ownerId);
     throw new Error("Nome do canal e ID do proprietário são obrigatórios");
   }
   console.log("Creating channel", name, description, ownerId, configs);
@@ -12,8 +22,17 @@ const createChannel = async (name, description, ownerId, configs) => {
   if (configs.roomPassword !== "" && configs.roomPassword) {
     hashedPassword = await generatePasswordHash(configs.roomPassword);
   }
-  const channel = new Channel({ name, description, owner: ownerId, configs: { ...configs, roomPassword: hashedPassword } });
-  return await channel.save();
+  const channel = new Channel({
+    name,
+    description,
+    owner: ownerId,
+    configs: { ...configs, roomPassword: hashedPassword },
+  });
+  await channel.save();
+  // populate owner field
+  await channel.populate("owner", "-passwordHash");
+  console.log("Channel created:", channel);
+  return channel;
 };
 
 const getChannelById = async (id) => {
@@ -28,8 +47,8 @@ const getChannelByUserId = async (userId) => {
     throw new Error("ID do usuário é obrigatório");
   }
   const channelsAsMember = await Channel.find({ members: userId })
-    .populate("owner", "-passwordHash")
-    .populate("members", "-passwordHash");
+    .populate("owner", "-passwordHash -email -otherSensitiveField")
+    .populate("members", "-passwordHash -email -otherSensitiveField");
   const channelsAsOwner = await Channel.find({ owner: userId })
     .populate("owner", "-passwordHash")
     .populate("members", "-passwordHash");
@@ -70,24 +89,36 @@ const addMemberToChannel = async (channelId, userId) => {
 };
 
 // add member to private by channel name and channel password
-const addMemberToPrivateChannel = async (channelName, channelPassword, userId) => {
+const addMemberToPrivateChannel = async (
+  channelName,
+  channelPassword,
+  userId
+) => {
   if (!channelName || !channelPassword || !userId) {
-    throw new Error("Nome do canal, senha do canal e ID do usuário são obrigatórios");
+    throw new Error(
+      "Nome do canal, senha do canal e ID do usuário são obrigatórios"
+    );
   }
 
-  const channel = await Channel.findOne({ name: channelName, "configs.roomType": "private" });
+  const channel = await Channel.findOne({
+    name: channelName,
+    "configs.roomType": "private",
+  });
   if (!channel) {
     throw new Error("Canal privado não encontrado");
   }
 
-  const isPasswordValid = await verifyPassword(channelPassword, channel.configs.roomPassword);
+  const isPasswordValid = await verifyPassword(
+    channelPassword,
+    channel.configs.roomPassword
+  );
   if (!isPasswordValid) {
     throw new Error("Senha do canal inválida");
   }
 
   channel.members.push(userId);
   await channel.save();
-// remove password from response
+  // remove password from response
   const data = {
     _id: channel._id,
     name: channel.name,
@@ -96,8 +127,8 @@ const addMemberToPrivateChannel = async (channelName, channelPassword, userId) =
     members: channel.members,
     configs: {
       ...channel.configs,
-      roomPassword: undefined
-    }
+      roomPassword: undefined,
+    },
   };
 
   return data;
@@ -129,17 +160,29 @@ const searchChannels = async (query, page = 1, limit = 10) => {
   if (!query) {
     throw new Error("Query is required");
   }
+  console.log("Searching channels with query:", query);
   const skip = (page - 1) * limit;
   // configs.type must be public
-  return await Channel.find({
-      name: { $regex: query, $options: "i" },
-      "configs.roomType": "public"
+  // Ensure the 'name' field is indexed in your Channel schema for better performance.
+  // Use a regex that starts with the query string for more efficient searching.
+  // check if has more pages
+
+  const total = await Channel.countDocuments({
+    name: { $regex: query, $options: "i" },
+    "configs.roomType": "public",
+  });
+  const quantityOfPages = Math.ceil(total / limit);
+
+  const channels = await Channel.find({
+    name: { $regex: query, $options: "i" },
+    "configs.roomType": "public",
   })
-    .populate("owner", "-passwordHash")
-    .populate("members", "-passwordHash")
-    .sort({ createdAt: -1 })
+    .populate("owner", "-passwordHash -email -otherSensitiveField")
+    .populate("members", "-passwordHash -email -otherSensitiveField")
     .skip(skip)
-    .limit(limit);
+    .limit(limit)
+    .sort({ createdAt: -1 });
+    return { channels, quantityOfPages };
 };
 
 // get all members of a channel by channelId
@@ -147,14 +190,24 @@ const getChannelMembers = async (channelId) => {
   if (!channelId) {
     throw new Error("ID do canal é obrigatório");
   }
-  const channel = await Channel.findById(channelId).populate("members").populate("owner");
+  const channel = await Channel.findById(channelId)
+    .populate("members")
+    .populate("owner");
   if (!channel) {
     throw new Error("Canal não encontrado");
   }
-  const members = channel.members.map(member => {
-    return { _id: member._id, username: member.username, profileImage: member.profileImage };
+  const members = channel.members.map((member) => {
+    return {
+      _id: member._id,
+      username: member.username,
+      profileImage: member.profileImage,
+    };
   });
-  const owner = { _id: channel.owner._id, username: channel.owner.username, profileImage: channel.owner.profileImage };
+  const owner = {
+    _id: channel.owner._id,
+    username: channel.owner.username,
+    profileImage: channel.owner.profileImage,
+  };
   return members.concat(owner);
 };
 
@@ -167,5 +220,5 @@ module.exports = {
   addMemberToChannel,
   addMemberToPrivateChannel,
   deleteChannel,
-  getChannelMembers
+  getChannelMembers,
 };

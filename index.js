@@ -12,6 +12,7 @@ app.use(cookieParser());
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://10.0.0.168:5173",
   "http://10.0.0.167:5173",
   "https://acaitalk.site",
   "https://www.acaitalk.site",
@@ -72,22 +73,22 @@ io.on("connection", (socket) => {
       return null;
     }
   };
+  // get rooms
+  // socket.on("get_rooms", async (token) => {
+  //   const decoded = validateToken(token);
+  //   if (!decoded) {
+  //     return;
+  //   }
+  //   if (!decoded.id) {
+  //     return socket.emit("channel_error", "User ID is required to fetch rooms");
+  //   }
 
-  socket.on("get_rooms", async (token) => {
-    const decoded = validateToken(token);
-    if (!decoded) {
-      return;
-    }
-    if (!decoded.id) {
-      return socket.emit("channel_error", "User ID is required to fetch rooms");
-    }
-
-    // emit only channels that are not private and the user is owner or player
-    const userChannels = await getChannelByUserId(decoded.id);
-    socket.emit("rooms", userChannels);
-  });
-  socket.on(
-    "create_channel",
+  //   // emit only channels that are not private and the user is owner or player
+  //   const userChannels = await getChannelByUserId(decoded.id);
+  //   socket.emit("rooms", userChannels);
+  // });
+  // create channel
+  socket.on("create_channel",
     (
       token,
       userId,

@@ -1,4 +1,5 @@
-const { searchChannels, addMemberToChannel, addMemberToPrivateChannel } = require("../controllers/channelControllers");
+const { get } = require("mongoose");
+const { searchChannels, addMemberToChannel, addMemberToPrivateChannel, getChannelByUserId } = require("../controllers/channelControllers");
 const { insertMessage } = require("../controllers/messagesControllers");
 const {authGuard} = require("../middlewares/authGuard");
 
@@ -10,6 +11,7 @@ router.get("/search", authGuard, async (req, res) => {
   const decodedQuery = decodeURIComponent(query);
   try {
     const channels = await searchChannels(decodedQuery, parseInt(page), parseInt(limit));
+    console.log("Channels found:", channels);
     res.status(200).json(channels);
   } catch (error) {
     console.error("Error searching channels:", error);
@@ -55,6 +57,18 @@ router.post("/:channelName/addMemberPrivate", authGuard, async (req, res) => {
   } catch (error) {
     console.error("Error adding member to private channel:", error);
     res.status(500).json({ errorMessage: error.message });
+  }
+});
+
+// get channels by userId
+router.get("/user/:userId", authGuard, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const channels = await getChannelByUserId(userId);
+    res.status(200).json(channels);
+  } catch (error) {
+    console.error("Error fetching channels by userId:", error);
+    res.status(500).json({ errorMessage: "Internal server error" });
   }
 });
 

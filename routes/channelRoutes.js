@@ -1,9 +1,23 @@
 const { get } = require("mongoose");
-const { searchChannels, addMemberToChannel, addMemberToPrivateChannel, getChannelByUserId, deleteChannel } = require("../controllers/channelControllers");
+const { searchChannels, addMemberToChannel, addMemberToPrivateChannel, getChannelByUserId, deleteChannel, createChannel } = require("../controllers/channelControllers");
 const { insertMessage } = require("../controllers/messagesControllers");
 const {authGuard} = require("../middlewares/authGuard");
 
 const router = require("express").Router();
+
+// create a new channel
+// { name, description, ownerId, configs }
+router.post("/", authGuard, async (req, res) => {
+  const { name, description, ownerId, configs } = req.body;
+  try {
+    const channel = await createChannel(name, description, ownerId, configs);
+    res.status(201).json(channel);
+  } catch (error) {
+    console.error("Error creating channel:", error);
+    res.status(500).json({ errorMessage: "Internal server error" });
+  }
+
+});
 
 
 // delete a channel by id

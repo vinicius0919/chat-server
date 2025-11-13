@@ -4,6 +4,7 @@ const generatePasswordHash = async (password) => {
   return await bcrypt.hash(password, saltRounds);
 };
 const verifyPassword = async (password, hash) => {
+  console.log("Verifying password:", password, hash);
   return await bcrypt.compare(password, hash);
 };
 

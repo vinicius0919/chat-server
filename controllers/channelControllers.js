@@ -1,4 +1,5 @@
 const Channel = require("../models/Channel");
+const User = require("../models/User");
 const { generatePasswordHash, verifyPassword } = require("../functions/passwordHash");
 
 const createChannel = async (name, description, ownerId, configs) => {
@@ -8,11 +9,18 @@ const createChannel = async (name, description, ownerId, configs) => {
     throw new Error("Nome do canal e ID do proprietário são obrigatórios");
   }
   console.log("Creating channel", name, description, ownerId, configs);
+  // verifica se o usuário já existe
+  // select id and username only
+  const user = await User.findById(ownerId).select("_id username");
+  if (!user) {
+    console.log("Owner user not found:", ownerId);
+    throw new Error("Usuário proprietário não encontrado");
+  }
   let hashedPassword = undefined;
   if (configs.roomPassword !== "" && configs.roomPassword) {
     hashedPassword = await generatePasswordHash(configs.roomPassword);
   }
-  const channel = new Channel({ name, description, owner: ownerId, configs: { ...configs, roomPassword: hashedPassword } });
+  const channel = new Channel({ name, description, owner: user, configs: { ...configs, roomPassword: hashedPassword } });
   return await channel.save();
 };
 
@@ -74,13 +82,14 @@ const addMemberToPrivateChannel = async (channelName, channelPassword, userId) =
   if (!channelName || !channelPassword || !userId) {
     throw new Error("Nome do canal, senha do canal e ID do usuário são obrigatórios");
   }
-
+  
   const channel = await Channel.findOne({ name: channelName, "configs.roomType": "private" });
   if (!channel) {
     throw new Error("Canal privado não encontrado");
   }
-
+  console.log("Found private channel:", channel);
   const isPasswordValid = await verifyPassword(channelPassword, channel.configs.roomPassword);
+  console.log("Password verified for channel:", isPasswordValid);
   if (!isPasswordValid) {
     throw new Error("Senha do canal inválida");
   }

@@ -104,8 +104,8 @@ const addMemberToPrivateChannel = async (channelName, channelPassword, userId) =
 };
 
 const deleteChannel = async (id, userId) => {
-  if (!id) {
-    throw new Error("ID do canal é obrigatório");
+  if (!id || !userId) {
+    throw new Error("ID do canal e ID do usuário são obrigatórios");
   }
   const channel = await Channel.findById(id);
   if (!channel) {

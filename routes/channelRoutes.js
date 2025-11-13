@@ -1,9 +1,24 @@
 const { get } = require("mongoose");
-const { searchChannels, addMemberToChannel, addMemberToPrivateChannel, getChannelByUserId } = require("../controllers/channelControllers");
+const { searchChannels, addMemberToChannel, addMemberToPrivateChannel, getChannelByUserId, deleteChannel } = require("../controllers/channelControllers");
 const { insertMessage } = require("../controllers/messagesControllers");
 const {authGuard} = require("../middlewares/authGuard");
 
 const router = require("express").Router();
+
+
+// delete a channel by id
+// receive channnelId and UserId  from body
+router.delete("/", authGuard, async (req, res) => {
+  const { channelId, ownerId } = req.body;
+  try {
+    await deleteChannel(channelId, ownerId);
+
+    res.status(204).json({ message: "Channel deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting channel:", error);
+    res.status(500).json({ errorMessage: "Internal server error" });
+  }
+});
 
 router.get("/search", authGuard, async (req, res) => {
   const { query, page = 1, limit = 10 } = req.query;
